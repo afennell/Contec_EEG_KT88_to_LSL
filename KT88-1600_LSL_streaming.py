@@ -14,7 +14,7 @@ import serial.tools.list_ports
 
 ser=serial.Serial()
 if len(sys.argv) > 1:
-    COM_PORT=sys.argv[1:]
+    COM_PORT=sys.argv[1]
 else:
     # port not given, using default
     if sys.platform == 'win32':
@@ -23,17 +23,21 @@ else:
         COM_PORT='/dev/cu.usbserial-1420'
 
 ser = serial.Serial(port=COM_PORT,
-                    baudrate=921600, parity=serial.PARITY_NONE,
+                    baudrate=128000, parity=serial.PARITY_NONE,
                     stopbits=serial.STOPBITS_ONE,
                     bytesize=serial.EIGHTBITS,xonxoff=False,rtscts=False,dsrdtr=False)
-
-
 
 
 def start_acquisition():
     packet = bytearray()
     packet.append(0x90)
     packet.append(0x01)
+
+    # DEBUG - Add these 3 lines
+    #print("Waiting for Contec data...")
+    #raw = ser.read(1000)
+    #print(f"Raw bytes received: {len(raw)} bytes: {raw[:50]}")
+
     return ser.write(packet)
 
 
