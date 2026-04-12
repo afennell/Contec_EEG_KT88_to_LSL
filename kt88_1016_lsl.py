@@ -22,14 +22,9 @@ ser = serial.Serial(
 )
 
 print("Sending start-stream command...")
-#packet = bytearray()
-#packet.append(0x08)
 ser.write(b'\x08')
-#packet.append(0x83)
-#packet.append(0x88)
 ser.write(b'\x83')
 ser.write(b'\x88')
-#ser.write(packet)
 
 time.sleep(0.1)
 print("Start-stream command sent.")
@@ -69,7 +64,7 @@ try:
 
 except KeyboardInterrupt:
     print("Ctrl+C pressed, sending command...")
-    ser.write(b'\xFF\n')   # send your command
+    ser.write(b'\xFF')   # send your command
     ser.flush()
 finally:
     ser.close()
