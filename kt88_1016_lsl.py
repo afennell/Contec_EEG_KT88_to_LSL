@@ -49,9 +49,14 @@ print("Streaming…")
 # READ LOOP
 # -------------------------
 
+# -------------------------
+# SCALING FACTOR
+# -------------------------
+SCALING_FACTOR = 0.1
+
 def decode(frame):
     vals = struct.unpack("<" + "h"*CHANNEL_COUNT, frame)
-    return [v * 0.1 for v in vals]  # approximate uV scaling
+    return [v * SCALING_FACTOR for v in vals]  # approximate uV scaling
 try:
     while True:
         frame = ser.read(FRAME_SIZE)

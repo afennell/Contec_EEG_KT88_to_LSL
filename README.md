@@ -125,3 +125,81 @@ If you find this script useful for your experiments, please cite my works. Thank
 92 09<br />
 ![alt text](9.PNG))<br />
 
+#### KT88 16 Channels
+- This version requires a specific set of codes in order to make the acquisition start
+- \x08 \x83 \x88 (Adriana Fennell)
+
+#### EEG Viewer
+- Run the LSL Stream Viewer to visualize the KT88 output
+  ```bash
+  python lsl_eeg_viewer.py
+  ```
+
+#### PyBCI Integration
+- **Ensure Dependencies:** You must install the following Python packages in your environment:
+   ```bash
+   pip install scikit-learn torch tensorflow antropy scipy numpy pylsl
+   ```
+- **`run_bci.py`:** Created a new script to orchestrate the BCI pipeline, connecting to your existing EEG LSL stream and enabling the training/testing logic.
+- **`send_markers.py`:** Added a utility script to create an LSL marker stream (`"Markers"`), which is required by `PyBCI` for epoching the data during training.
+
+#### How to Use
+1. **Start the EEG Stream:** Run your existing `kt88_1016_lsl.py` script.
+   
+2. **Run BCI Pipeline:** Start the BCI processing in a new terminal:
+   ```bash
+   python run_bci.py
+   ```
+   
+3. **Send Training Markers:** Start the marker sender in another terminal:
+   ```bash
+   python send_markers.py
+   ```
+   Follow the prompts to send markers like `baseline` and `arm_move`. Once the minimum number of epochs (default is 10 of each) is reached, `run_bci.py` will automatically switch to Test Mode and provide estimations.
+
+#### Notes
+- **LSL Stream:** `PyBCI` automatically searches for available EEG and Marker streams. If `run_bci.py` fails to connect, ensure the name of your EEG stream matches what `PyBCI` expects, or explicitly pass the stream name in `PyBCI(...)`.
+- **Classifier Configuration:** By default, it uses a support vector machine (SVM) from `scikit-learn`. You can customize the classifier by passing a different `clf`, `model`, or `torchModel` to the `PyBCI` constructor in `run_bci.py`.
+
+### Recommended Execution Sequence
+
+To run the BCI pipeline correctly, start the scripts in this specific order to ensure data streams are available before `PyBCI` attempts to connect:
+
+1.  **Start the EEG Stream (`kt88_1016_lsl.py`)**
+    This script initializes the connection to your EEG hardware and streams data via LSL.
+    ```bash
+    python kt88_1016_lsl.py
+    ```
+
+2.  **Start the Marker Stream (`send_markers.py`)**
+    `PyBCI` requires a marker stream to epoch the data.
+    ```bash
+    python send_markers.py
+    ```
+    *Keep this terminal open, as you will need to input markers (e.g., `baseline`, `arm_move`) here to train the model.*
+
+3.  **Run the BCI Pipeline (`run_bci.py`)**
+    Once the EEG and Marker streams are active, start the BCI processing.
+    ```bash
+    python run_bci.py
+    ```
+
+### Troubleshooting
+*   **Order Matters:** If `run_bci.py` is started first, it may not find the streams.
+*   **Verification:** If you are unsure if streams are active, run `test_lsl.py` to confirm that both `KT88_1016` and `Markers` streams are discoverable.
+*   **Dependencies:** Ensure required packages are installed:
+
+#### How to proceed with training:
+1.  **Go to the terminal where `send_markers.py` is running.**
+2.  **Start sending markers** to label your brain signals.
+    *   **For `baseline`:** Send "baseline" when you are sitting still and not moving your arm.
+    *   **For `arm_move`:** Send "arm_move" while you are performing the specific arm movement you want to recognize.
+3.  **Continue sending markers:**
+    *   `PyBCI` is configured by default to require at least **10 examples of each marker** (10 "baseline" and 10 "arm_move") to begin training the classifier.
+    *   As you send these markers, look at the output in the `run_bci.py` terminal; it will likely show the count of received markers.
+
+#### What happens next:
+Once `run_bci.py` detects that it has gathered enough training epochs (the required number for each marker type), it will:
+1.  Automatically begin fitting the classification model.
+2.  Switch to **Test Mode** on its own.
+3.  Once in Test Mode, it will start printing the predicted markers to your `run_bci.py` terminal as it analyzes your real-time EEG data.
