@@ -1,4 +1,4 @@
- 
+1 
 
 # Contec KT88-1600-2400-3200 to LSL
 Script used to decode serial data stream of Contec **KT88-1600-2400** EEG amplifiers and to stream it to the local network via LSL

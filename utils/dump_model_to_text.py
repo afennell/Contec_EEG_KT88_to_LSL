@@ -1,7 +1,7 @@
 import joblib
 import os
 
-models_dir = 'models'
+models_dir = '../models'
 
 if not os.path.exists(models_dir):
     print(f"Directory '{models_dir}' does not exist.")

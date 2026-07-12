@@ -12,7 +12,7 @@ import pyqtgraph as pg
 # CONFIG
 # -----------------------------------------
 
-STREAM_NAME = "KT88_1016"
+STREAM_NAME = "KT88"
 CHANNEL_COUNT = 16
 BUFFER_SIZE = 2000
 
@@ -32,9 +32,25 @@ print("Connected to stream.")
 
 app = QtWidgets.QApplication([])
 
-win = pg.GraphicsLayoutWidget(show=True, title="KT88-1016 EEG Viewer")
-win.resize(1200, 800)
-win.setWindowTitle("KT88 EEG Real-Time Viewer")
+# Main container
+container = QtWidgets.QWidget()
+container.setWindowTitle("KT88 EEG Real-Time Viewer")
+layout = QtWidgets.QVBoxLayout()
+container.setLayout(layout)
+
+# Gain control
+controls = QtWidgets.QHBoxLayout()
+layout.addLayout(controls)
+controls.addWidget(QtWidgets.QLabel("Gain:"))
+gain_spinbox = QtWidgets.QDoubleSpinBox()
+gain_spinbox.setRange(0.01, 1000.0)
+gain_spinbox.setValue(1.0)
+gain_spinbox.setSingleStep(0.1)
+controls.addWidget(gain_spinbox)
+
+win = pg.GraphicsLayoutWidget()
+layout.addWidget(win)
+container.show()
 
 plots = []
 curves = []
@@ -45,7 +61,7 @@ data_buffers = np.zeros((CHANNEL_COUNT, BUFFER_SIZE))
 for ch in range(CHANNEL_COUNT):
     p = win.addPlot(row=ch, col=0)
     p.setLabel('left', f"Ch {ch+1}")
-    p.setYRange(-400, 400)
+    # p.setYRange(-400, 400)
     curve = p.plot()
     plots.append(p)
     curves.append(curve)
@@ -61,7 +77,8 @@ def update():
     sample, ts = inlet.pull_sample(timeout=0.0)
     #print(sample)
     if sample is None:
-        return
+        # If no sample, use the last sample to keep the line flat and scrolling
+        sample = data_buffers[:, -1]
 
     sample = np.array(sample)
 
