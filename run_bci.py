@@ -1,3 +1,4 @@
+import sys
 import time
 import joblib
 import os
@@ -47,18 +48,21 @@ def create_tensorflow_model(input_dim=None):
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     return model
 
-def create_pytorch_model():
-    """Create a simple PyTorch neural network"""
+def create_pytorch_model(input_dim=None):
+    """Create a simple PyTorch neural network with training function"""
     class SimpleNet(nn.Module):
-        def __init__(self):
+        def __init__(self, input_dim=32):
             super(SimpleNet, self).__init__()
-            self.fc1 = nn.Linear(100, 64)
+            self.fc1 = nn.Linear(input_dim, 64)
             self.fc2 = nn.Linear(64, 32)
             self.fc3 = nn.Linear(32, 2)
             self.relu = nn.ReLU()
             self.dropout = nn.Dropout(0.2)
         
         def forward(self, x):
+            # Flatten if needed
+            if len(x.shape) > 2:
+                x = x.reshape(x.shape[0], -1)
             x = self.relu(self.fc1(x))
             x = self.dropout(x)
             x = self.relu(self.fc2(x))
@@ -66,35 +70,131 @@ def create_pytorch_model():
             x = self.fc3(x)
             return x
     
-    return SimpleNet()
+    model = SimpleNet(input_dim if input_dim else 32)
+    
+    def train_and_evaluate(x_train, x_test, y_train, y_test):
+        """Train the model and return accuracy and trained model"""
+        import sys
+        # Flatten data if 3D
+        if len(x_train.shape) == 3:
+            x_train = x_train.reshape(x_train.shape[0], -1)
+            x_test = x_test.reshape(x_test.shape[0], -1)
+        
+        x_train = torch.FloatTensor(x_train)
+        x_test = torch.FloatTensor(x_test)
+        y_train = torch.LongTensor(y_train)
+        y_test = torch.LongTensor(y_test)
+        
+        print(f"[PyTorch] Training with shapes: x_train={x_train.shape}, y_train={y_train.shape}", flush=True)
+        sys.stdout.flush()
+        
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        
+        # Training loop
+        model.train()
+        epochs = 50
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            outputs = model(x_train)
+            loss = criterion(outputs, y_train)
+            loss.backward()
+            optimizer.step()
+            if (epoch + 1) % 10 == 0:
+                print(f"[PyTorch] Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}", flush=True)
+                sys.stdout.flush()
+        
+        print(f"[PyTorch] Training complete, evaluating...", flush=True)
+        sys.stdout.flush()
+        
+        # Evaluate
+        model.eval()
+        with torch.no_grad():
+            test_outputs = model(x_test)
+            _, predictions = torch.max(test_outputs, 1)
+            accuracy = (predictions == y_test).float().mean().item()
+            print(f"[PyTorch] Accuracy: {accuracy:.4f}", flush=True)
+        
+        model.train()  # Put back in training mode
+        print(f"[PyTorch] Returning: accuracy={accuracy}, model={type(model)}", flush=True)
+        sys.stdout.flush()
+        return accuracy, model
+    
+    # Store the training function as an attribute
+    model.train_func = train_and_evaluate
+    return model
 
 SELECTED_MODEL = "svm" # Switch this to desired model
 
-def save_model(model, scaler, models_dir="models"):
+def save_model(model, scaler, marker_labels=None, models_dir="models"):
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
+    print(f"\n{'='*60}")
+    print(f"[SAVING MODEL] Type: {type(model).__name__}")
+    print(f"{'='*60}")
+    sys.stdout.flush()
+    
     try:
         # Check if it's a Keras model
         if HAS_TENSORFLOW and hasattr(model, 'save'):
+            print(f"[SAVING] Detected Keras/TensorFlow model")
+            sys.stdout.flush()
             filename = f"model_keras_{timestamp}.keras"
             filepath = os.path.join(models_dir, filename)
+            print(f"[SAVING] Writing model to: {filepath}")
+            sys.stdout.flush()
             model.save(filepath)
+            print(f"[SAVING] ✓ Model saved successfully!")
+            sys.stdout.flush()
             # Also save scaler separately
             if scaler:
-                joblib.dump(scaler, os.path.join(models_dir, f"scaler_keras_{timestamp}.joblib"))
-            print(f"Keras model saved to '{filepath}'")
+                scaler_filepath = os.path.join(models_dir, f"scaler_keras_{timestamp}.joblib")
+                print(f"[SAVING] Writing scaler to: {scaler_filepath}")
+                sys.stdout.flush()
+                joblib.dump(scaler, scaler_filepath)
+                print(f"[SAVING] ✓ Scaler saved!")
+                sys.stdout.flush()
+            print(f"[SAVING] ✓✓✓ Keras model saved to: {filepath}")
+            print(f"{'='*60}\n")
+            sys.stdout.flush()
             return
         
         # Check if it's a PyTorch model
         if HAS_PYTORCH and isinstance(model, nn.Module):
+            print(f"[SAVING] Detected PyTorch model")
+            sys.stdout.flush()
+            # Remove the training function before saving
+            if hasattr(model, 'train_func'):
+                delattr(model, 'train_func')
             filename = f"model_pytorch_{timestamp}.pt"
             filepath = os.path.join(models_dir, filename)
+            print(f"[SAVING] Writing weights to: {filepath}")
+            sys.stdout.flush()
             torch.save(model.state_dict(), filepath)
+            print(f"[SAVING] ✓ Weights saved successfully!")
+            sys.stdout.flush()
+            
             if scaler:
-                joblib.dump(scaler, os.path.join(models_dir, f"scaler_pytorch_{timestamp}.joblib"))
-            print(f"PyTorch model saved to '{filepath}'")
+                scaler_filepath = os.path.join(models_dir, f"scaler_pytorch_{timestamp}.joblib")
+                print(f"[SAVING] Writing scaler to: {scaler_filepath}")
+                sys.stdout.flush()
+                joblib.dump(scaler, scaler_filepath)
+                print(f"[SAVING] ✓ Scaler saved successfully!")
+                sys.stdout.flush()
+            
+            if marker_labels:
+                labels_filepath = os.path.join(models_dir, f"labels_pytorch_{timestamp}.joblib")
+                print(f"[SAVING] Writing labels to: {labels_filepath}")
+                sys.stdout.flush()
+                joblib.dump(marker_labels, labels_filepath)
+                print(f"[SAVING] ✓ Labels saved: {marker_labels}")
+                sys.stdout.flush()
+            
+            print(f"[SAVING] ✓✓✓ PyTorch model saved to: {filepath}")
+            print(f"{'='*60}\n")
+            sys.stdout.flush()
             return
         
         # Otherwise save as sklearn model
@@ -139,63 +239,69 @@ def startup_menu():
     print("      BCI System - Startup Configuration")
     print("="*50)
     
-    # Ask for mode
-    while True:
-        print("\nSelect mode:")
-        print("1. Train a new model")
-        print("2. Load an existing model for inference")
-        mode_choice = input("Enter choice (1 or 2): ").strip()
-        
-        if mode_choice == "1":
-            # Ask for model type
-            while True:
-                print("\nSelect model type:")
-                print("--- Scikit-Learn Models ---")
-                print("1. SVM (Support Vector Machine) - Linear kernel")
-                print("2. Random Forest - 100 estimators")
-                print("3. Logistic Regression")
-                print("4. KNN (K-Nearest Neighbors)")
-                print("5. Decision Tree")
-                
-                if HAS_TENSORFLOW:
-                    print("--- TensorFlow/Keras Models ---")
-                    print("6. Keras Neural Network")
-                
-                if HAS_PYTORCH:
-                    print("--- PyTorch Models ---")
-                    print("7. PyTorch Neural Network")
-                
-                model_choice = input("Enter choice: ").strip()
-                
-                model_map = {
-                    "1": ("svm", "sklearn"),
-                    "2": ("rf", "sklearn"),
-                    "3": ("lr", "sklearn"),
-                    "4": ("knn", "sklearn"),
-                    "5": ("dt", "sklearn"),
-                }
-                
-                if HAS_TENSORFLOW:
-                    model_map["6"] = ("keras", "tensorflow")
-                
-                if HAS_PYTORCH:
-                    model_map["7"] = ("pytorch", "pytorch")
-                
-                if model_choice in model_map:
-                    model_name, model_lib = model_map[model_choice]
-                    return None, model_name, model_lib
-                else:
-                    print("Invalid choice. Please enter a valid option.")
+    # Default to training PyTorch if in non-interactive mode
+    try:
+        # Ask for mode
+        while True:
+            print("\nSelect mode:")
+            print("1. Train a new model")
+            print("2. Load an existing model for inference")
+            mode_choice = input("Enter choice (1 or 2): ").strip()
             
-        elif mode_choice == "2":
-            model_path, model_filename = get_model_path()
-            if model_path:
-                return model_path, None, None
+            if mode_choice == "1":
+                # Ask for model type
+                while True:
+                    print("\nSelect model type:")
+                    print("--- Scikit-Learn Models ---")
+                    print("1. SVM (Support Vector Machine) - Linear kernel")
+                    print("2. Random Forest - 100 estimators")
+                    print("3. Logistic Regression")
+                    print("4. KNN (K-Nearest Neighbors)")
+                    print("5. Decision Tree")
+                    
+                    if HAS_TENSORFLOW:
+                        print("--- TensorFlow/Keras Models ---")
+                        print("6. Keras Neural Network")
+                    
+                    if HAS_PYTORCH:
+                        print("--- PyTorch Models ---")
+                        print("7. PyTorch Neural Network")
+                    
+                    model_choice = input("Enter choice: ").strip()
+                    
+                    model_map = {
+                        "1": ("svm", "sklearn"),
+                        "2": ("rf", "sklearn"),
+                        "3": ("lr", "sklearn"),
+                        "4": ("knn", "sklearn"),
+                        "5": ("dt", "sklearn"),
+                    }
+                    
+                    if HAS_TENSORFLOW:
+                        model_map["6"] = ("keras", "tensorflow")
+                    
+                    if HAS_PYTORCH:
+                        model_map["7"] = ("pytorch", "pytorch")
+                    
+                    if model_choice in model_map:
+                        model_name, model_lib = model_map[model_choice]
+                        return None, model_name, model_lib
+                    else:
+                        print("Invalid choice. Please enter a valid option.")
+                
+            elif mode_choice == "2":
+                model_path, model_filename = get_model_path()
+                if model_path:
+                    return model_path, None, None
+                else:
+                    print("No models found. Please train a new model first.")
+                    continue
             else:
-                print("No models found. Please train a new model first.")
-                continue
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
+                print("Invalid choice. Please enter 1 or 2.")
+    except EOFError:
+        # Non-interactive mode - default to PyTorch training
+        print("[INFO] Non-interactive mode detected. Defaulting to PyTorch training.")
+        return None, "pytorch", "pytorch"
 
 if __name__ == '__main__':
     # Interactive startup menu
@@ -340,18 +446,39 @@ if __name__ == '__main__':
                     if min_epochs >= bci.minimumEpochsRequired:
                         print("\nEnough markers. Training...")
                         # Wait until the model is trained
+                        training_start = time.time()
+                        max_wait = 300  # 5 minutes max
+                        check_count = 0
                         while True:
                             classInfo = bci.CurrentClassifierInfo()
-                            # If 'model' is None, check 'clf' (sklearn)
-                            model = classInfo["model"] if classInfo["model"] is not None else classInfo["clf"]
-                            scaler = classInfo["scaler"]
-                            if model is not None:
-                                print("Model trained.")
+                            # Priority: torchModel > model > clf
+                            model = classInfo.get("torchModel") if classInfo.get("torchModel") is not None else None
+                            if model is None:
+                                model = classInfo.get("model") if classInfo.get("model") is not None else None
+                            if model is None:
+                                model = classInfo.get("clf") if classInfo.get("clf") is not None else None
+                            scaler = classInfo.get("scaler")
+                            accuracy = classInfo.get("accuracy", 0)
+                            
+                            elapsed = time.time() - training_start
+                            check_count += 1
+                            
+                            # Only print every 10 checks to avoid spam
+                            if check_count % 10 == 0:
+                                print(f"[Training] Check #{check_count}: model={model is not None}, accuracy={accuracy:.4f}, elapsed={elapsed:.1f}s", flush=True)
+                            
+                            if model is not None and accuracy > 0:
+                                print(f"\n[SUCCESS] Model trained with accuracy={accuracy:.4f}!", flush=True)
                                 bci.TestMode()
                                 # Get and save marker labels
                                 marker_labels = list(currentMarkers.keys()) if currentMarkers else None
                                 print(f"Marker classes: {marker_labels}")
                                 save_model(model, scaler, marker_labels)
+                                break
+                            
+                            if elapsed > max_wait:
+                                print(f"\n[ERROR] Training timeout after {max_wait}s")
+                                print(f"Final state: model={model is not None}, accuracy={accuracy}")
                                 break
                             time.sleep(1)
                         break

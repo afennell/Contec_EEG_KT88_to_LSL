@@ -101,7 +101,7 @@ class ClassifierThread(threading.Thread):
                 classdata = {
                     "clf":self.classifier.clf,
                     "model":self.classifier.model,
-                    "torchModel":self.classifier.torchModel,
+                    "torchModel":getattr(self.classifier, 'pymodel', self.classifier.torchModel),
                     "accuracy":a,
                     "scaler": getattr(self.classifier, 'scaler', None)
                     }

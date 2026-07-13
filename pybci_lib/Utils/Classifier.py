@@ -32,6 +32,9 @@ class Classifier():
             self.classifierLibrary = "sklearn"
 
     def TrainModel(self, features, targets):
+        import sys
+        print(f"[Classifier.TrainModel] Called with classifierLibrary={self.classifierLibrary}, features.shape={features.shape}, targets.shape={targets.shape}", flush=True)
+        sys.stdout.flush()
         x_train, x_test, y_train, y_test = train_test_split(features, targets, shuffle = True, test_size=0.2)
         #print(features.shape)
         #print(x_train.shape)
@@ -49,11 +52,19 @@ class Classifier():
             x_train = self.scaler.fit_transform(x_train)  # Compute the mean and standard deviation based on the training data
             x_test = self.scaler.transform(x_test)  # Scale the test data
         if all(item == y_train[0] for item in y_train):
+            print(f"[Classifier] All targets are the same, skipping training", flush=True)
+            sys.stdout.flush()
             pass
         else:
+            print(f"[Classifier] Training with library: {self.classifierLibrary}", flush=True)
+            sys.stdout.flush()
             #print(x_train, y_train)
             if self.classifierLibrary == "pyTorch":
-                self.accuracy, self.pymodel  = self.torchModel(x_train, x_test, y_train, y_test)
+                print(f"[Classifier] Calling train_func with x_train.shape={x_train.shape}", flush=True)
+                sys.stdout.flush()
+                self.accuracy, self.pymodel = self.torchModel.train_func(x_train, x_test, y_train, y_test)
+                print(f"[Classifier] Training complete. Accuracy={self.accuracy}", flush=True)
+                sys.stdout.flush()
             elif self.classifierLibrary == "sklearn":
                 self.clf.fit(x_train, y_train)
                 y_predictions = self.clf.predict(x_test)
@@ -63,6 +74,8 @@ class Classifier():
                 self.loss, self.accuracy = self.model.evaluate(np.array(x_test), np.array(y_test), verbose=0)
             else:
                 # no classifier library selected, print debug?
+                print(f"[Classifier] ERROR: Unknown classifier library: {self.classifierLibrary}", flush=True)
+                sys.stdout.flush()
                 pass
 
     def TestModel(self, x):
